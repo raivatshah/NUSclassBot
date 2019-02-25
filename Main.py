@@ -13,9 +13,18 @@ Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
 
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
 import telegram
 import logging
+import os
+import pickle
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+
+################################################
+## Variables required to run program properly ##
+################################################
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -24,27 +33,99 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 ECHO = range(0)
 
-# Command handlers, usually take two params - bot and update
+# If modifying these scopes, delete the file token.pickle.
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+SAMPLE_LIST = ['Chaitanya Baranwal', 'Raivat Shah', 'Advay Pal']
+
+####################################
+#### Google Sheets Commands ########
+####################################
+
+def get_service():
+    """Shows basic usage of the Sheets API.
+        Prints values from a sample spreadsheet.
+        """
+    creds = None
+    # The file token.pickle stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server()
+        # Save the credentials for the next run
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+
+    service = build('sheets', 'v4', credentials=creds)
+    return service
+
+def create_sheet():
+    """Shows basic usage of the Sheets API.
+    Create a new sample spreadsheet.
+    """
+    service = get_service()
+
+    # Call the Sheets API
+    spreadsheet = {
+        'properties': {
+            'title': 'NUSClassSample.xlsx'
+        }
+    }
+    spreadsheet = service.spreadsheets().create(body=spreadsheet,
+                                        fields='spreadsheetId').execute()
+    print('Spreadsheet ID: {0}'.format(spreadsheet.get('spreadsheetId')))
+
+def add_values_to_sheet(time):
+    values = []
+    for name in SAMPLE_LIST:
+        values.append([name, time])
+
+    body = {
+        'values': values
+    }
+
+    # Call the Sheets API
+    service = get_service()
+    spreadsheet = {
+        'properties': {
+            'title': 'NUSClassSample.xlsx'
+        }
+    }
+    spreadsheetId = service.spreadsheets().create(body=spreadsheet,
+                                        fields='spreadsheetId').execute().get('spreadsheetId')
+
+    result = service.spreadsheets().values().update(
+        spreadsheetId=spreadsheetId, range='A2:B', 
+        valueInputOption='RAW', body=body).execute()
+
+    print('{0} cells updated.'.format(result.get('updatedCells')))
+
+##############################
+##### Bot framework ##########
+##############################
+
 def start(bot, update):
-    """Send a message when command /start is issued"""
-    update.message.reply_text('Hello!')
+    # """Create spreadsheet when /start command is issued"""
+    # service = setup_sheets()
 
-def echoFunc(bot, update):
-    """Echo the typed message"""
-    bot.send_message(update.message.chat_id, update.message.text, reply_to_message_id=update.message.message_id)
-    return ConversationHandler.END
+    # spreadsheet = {
+    #     'properties': {
+    #         'title': 'NUSClassBot_Sample'
+    #     }
+    # }
+    # spreadsheet = service.spreadsheets().create(body=spreadsheet,
+    #                                     fields='spreadsheetId').execute()
+    # print('Spreadsheet ID: {0}'.format(spreadsheet.get('spreadsheetId')))
 
-def echo(bot, update):
-    """Echo the typed message"""
-    text = '/echo Bot Parrot Mode 🤖\nWhat do you want me to parrot? (Enter /cancel to end)'
-    bot.send_message(update.message.chat_id, text, reply_to_message_id=update.message.message_id,
-                        reply_markup=telegram.ForceReply())
-    return ECHO
-
-def cancel(bot, update):
-    """Cancel the echo"""
-    update.message.reply_text('🤖: Not echoing anymore!')
-    return ConversationHandler.END
+    add_values_to_sheet("Now")
 
 def error(bot, update, error):
     """Log errors caused by updates"""
@@ -60,16 +141,7 @@ def main():
     dp = updater.dispatcher
 
     # Register different commands
-    dp.add_handler(CommandHandler('start', start))
-    # Conversation handler to manage echo
-    conv_handler = ConversationHandler(
-        entry_points = [CommandHandler('echo', echo)],
-        states = {
-            ECHO: [MessageHandler(Filters.text, echoFunc)]
-        },
-        fallbacks = [CommandHandler('cancel', cancel)]
-    )
-    dp.add_handler(conv_handler)
+    dp.add_handler(CommandHandler('setup_sheet', start))
 
     # Register an error logger
     dp.add_error_handler(error)
