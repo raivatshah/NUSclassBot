@@ -22,6 +22,8 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import pyivle
+import random 
+import string
 
 ################################################
 ## Variables required to run program properly ##
@@ -137,6 +139,9 @@ def login():
 
     ## add studentName and studentID to method that adds to the database.
 
+def randomKey(timeStamp): 
+    return hash(timeStamp) # returns the hash value of the timestamp object.
+
 def main():
     """Start the bot"""
     
@@ -148,6 +153,7 @@ def main():
 
     # Register different commands
     dp.add_handler(CommandHandler('setup_sheet', start))
+    dp.add_handler(CommandHandler('class', start))
 
     # Register an error logger
     dp.add_error_handler(error)
