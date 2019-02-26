@@ -21,6 +21,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Conve
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+import pyivle
 
 ################################################
 ## Variables required to run program properly ##
@@ -113,23 +114,30 @@ def add_values_to_sheet(time):
 ##############################
 
 def start(bot, update):
-    # """Create spreadsheet when /start command is issued"""
-    # service = setup_sheets()
-
-    # spreadsheet = {
-    #     'properties': {
-    #         'title': 'NUSClassBot_Sample'
-    #     }
-    # }
-    # spreadsheet = service.spreadsheets().create(body=spreadsheet,
-    #                                     fields='spreadsheetId').execute()
-    # print('Spreadsheet ID: {0}'.format(spreadsheet.get('spreadsheetId')))
 
     add_values_to_sheet("Now")
 
 def error(bot, update, error):
     """Log errors caused by updates"""
     logger.warning('Update "%s" caused an error "%s"', update, error)
+
+#############################
+####### IVLE Login ##########
+#############################
+
+def login(): 
+    # Authenticate 
+    p = pyivle.Pyivle("DubSaHUcwQXbD2F0PH9VI")
+    p.login(USER_ID, PASSWORD)
+
+    # Get name and user IDs
+    student = p.profile_view() 
+    studentName = student.Results[0].Name
+    studentID = student.Results[0].UserID
+
+    ## add studentName and studentID to method that adds to the database.
+
+
 
 def main():
     """Start the bot"""
