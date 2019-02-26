@@ -22,6 +22,8 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import pyivle
+import random 
+import string
 
 ################################################
 ## Variables required to run program properly ##
@@ -207,6 +209,9 @@ def login():
     studentID = student.Results[0].UserID
 
     ## add studentName and studentID to method that adds to the database.
+
+def random_key(timeStamp): 
+    return hash(timeStamp) # returns the hash value of the timestamp object.
 
 def main():
     """Start the bot"""
