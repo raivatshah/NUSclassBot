@@ -1,3 +1,6 @@
 venv/
 .vscode/
 token.pickle
+.envrc
+.direnv/
+.DS_Store
