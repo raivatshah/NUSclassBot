@@ -137,8 +137,6 @@ def login():
 
     ## add studentName and studentID to method that adds to the database.
 
-
-
 def main():
     """Start the bot"""
     
