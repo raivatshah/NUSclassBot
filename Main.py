@@ -41,7 +41,7 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SAMPLE_LIST = ['Chaitanya Baranwal', 'Raivat Shah', 'Advay Pal']
 PICKLE_FILE = 'token.pickle'
 STATE_OBJECT = {
-    "@advaypal": {
+    "advaypal": {
         'session_started': False,
     }
 }
@@ -58,7 +58,7 @@ def get_service():
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
-    if os.path.exists():
+    if os.path.exists(PICKLE_FILE):
         with open(PICKLE_FILE, 'rb') as token:
             creds = pickle.load(token)
     # If there are no (valid) credentials available, let the user log in.
@@ -105,6 +105,7 @@ def create_sheet(username):
 
 def setup_sheet(bot, update):
     username = update.message.from_user.username
+    print(username)
     if username not in STATE_OBJECT:
         update.message.reply_text("Invalid command")
         return 
@@ -126,9 +127,10 @@ def start_session(bot, update, args):
         message = "A session is already running"
     else:
         STATE_OBJECT[username]['session_started'] = True
-        STATE_OBJECT[username]['session_token'] = generate_hash()
+        token = generate_hash()
+        STATE_OBJECT[username]['session_token'] = token
         STATE_OBJECT[username]['num_students'] = number_of_students
-        message = "Session Started!"
+        message = f"Session Started! Token = {token}"
     update.message.reply_text(message)
 
 
@@ -156,23 +158,23 @@ def indicate_attendance(bot, update, args):
         return
     token = int(args[0])
     #(TODO): A student may belong to multiple tutors
-    for tutor in STATE_OBJECT:
-        if tutor['session_token'] == token:
-            add_value_to_sheet(username, tutor)
+    for _, tutor_object in STATE_OBJECT.items():
+        if tutor_object['session_token'] == token:
+            add_value_to_sheet(username, tutor_object)
             # (TODO): Verify with student count
             update.message.reply_text("Attendance marked!")
             return
     update.message.reply_text("An error occured, please validate token")
 
 
-def add_value_to_sheet(username, tutor):
+def add_value_to_sheet(username, tutor_object):
     values = [[username, '1']]
     body = {
         'values': values
     }
     # Call the Sheets API
     service = get_service()
-    spreadsheetId = tutor["spreadsheet_id"]
+    spreadsheetId = tutor_object["spreadsheet_id"]
     # (TODO): Might fail
     result = service.spreadsheets().values().update(
         spreadsheetId=spreadsheetId, range='A2:B', 
@@ -210,9 +212,9 @@ def main():
 
     # Register different commands
     dp.add_handler(CommandHandler('setup_sheet', setup_sheet))
-    dp.add_handler(CommandHandler('start_session', start_session))
+    dp.add_handler(CommandHandler('start_session', start_session, pass_args=True))
     dp.add_handler(CommandHandler('stop_session', stop_session))
-    dp.add_handler(CommandHandler('attend', indicate_attendance))
+    dp.add_handler(CommandHandler('attend', indicate_attendance, pass_args=True))
     # dp.add_handler(CommandHandler('help', help_func))
 
     # Register an error logger
