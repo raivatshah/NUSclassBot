@@ -12,7 +12,7 @@ Basic Echobot example, repeats messages.
 Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
-
+import time
 import telegram
 import logging
 import os
@@ -42,8 +42,7 @@ SAMPLE_LIST = ['Chaitanya Baranwal', 'Raivat Shah', 'Advay Pal']
 PICKLE_FILE = 'token.pickle'
 STATE_OBJECT = {
     "@advaypal": {
-        'token': None,
-        'session_started': False
+        'session_started': False,
     }
 }
 
@@ -77,7 +76,7 @@ def get_service():
     service = build('sheets', 'v4', credentials=creds)
     return service
 
-def create_sheet():
+def create_sheet(username):
     """Shows basic usage of the Sheets API.
     Create a new sample spreadsheet.
     """
@@ -92,34 +91,11 @@ def create_sheet():
     }
     spreadsheet = service.spreadsheets().create(body=spreadsheet,
                                         fields='spreadsheetId').execute()
-    spreadsheetId = spreadsheet.get('spreadsheetId')
-    with open(PICKLE_FILE, 'w') as token:
-        pickle.dump({'id': spreadsheetId}, token)
+    spreadsheet_id = spreadsheet.get('spreadsheetId')
+    STATE_OBJECT[username]['spreadsheet_id'] = spreadsheet_id
+    # with open(PICKLE_FILE, 'w') as token:
+    #     pickle.dump({'id': spreadsheetId}, token)
 
-# def add_values_to_sheet(time):
-#     values = []
-#     for name in SAMPLE_LIST:
-#         values.append([name, time])
-
-#     body = {
-#         'values': values
-#     }
-
-#     # Call the Sheets API
-#     service = get_service()
-#     spreadsheet = {
-#         'properties': {
-#             'title': 'NUSClassSample.xlsx'
-#         }
-#     }
-#     spreadsheetId = service.spreadsheets().create(body=spreadsheet,
-#                                         fields='spreadsheetId').execute().get('spreadsheetId')
-
-#     result = service.spreadsheets().values().update(
-#         spreadsheetId=spreadsheetId, range='A2:B', 
-#         valueInputOption='RAW', body=body).execute()
-
-#     print('{0} cells updated.'.format(result.get('updatedCells')))
 
 ##############################
 ##### Bot framework ##########
@@ -133,12 +109,11 @@ def setup_sheet(bot, update):
         update.message.reply_text("Invalid command")
         return 
     # (TODO): Check if sheet already set up?
-    create_sheet()
+    create_sheet(username)
     update.message.reply_text("Sheet successfully created!")
 
-
 def generate_hash():
-    return 5
+    return hash(time.time())
 
 def start_session(bot, update, args):
     number_of_students = int(args[0])
@@ -152,12 +127,12 @@ def start_session(bot, update, args):
     else:
         STATE_OBJECT[username]['session_started'] = True
         STATE_OBJECT[username]['session_token'] = generate_hash()
+        STATE_OBJECT[username]['num_students'] = number_of_students
         message = "Session Started!"
     update.message.reply_text(message)
 
 
 def stop_session(bot, update, args):
-    number_of_students = int(args[0])
     username = update.message.from_user.username
     if username not in STATE_OBJECT:
         update.message.reply_text("Invalid command")
@@ -167,14 +142,12 @@ def stop_session(bot, update, args):
         message = "No session running"
     else:
         STATE_OBJECT[username]['session_started'] = False
-        STATE_OBJECT[username]['session_token'] = None
+        del STATE_OBJECT[username]['session_token']
+        del STATE_OBJECT[username]['num_students']
         message = "Session Stopped"
     update.message.reply_text(message)
 
 ##### Student ##########
-
-def add_value_to_sheet(name):
-    pass
 
 def indicate_attendance(bot, update, args):
     username = update.message.from_user.username
@@ -182,13 +155,29 @@ def indicate_attendance(bot, update, args):
         update.message.reply_text("Invalid number of arguments")
         return
     token = int(args[0])
+    #(TODO): A student may belong to multiple tutors
     for tutor in STATE_OBJECT:
         if tutor['session_token'] == token:
-            add_value_to_sheet(username)
+            add_value_to_sheet(username, tutor)
             # (TODO): Verify with student count
             update.message.reply_text("Attendance marked!")
             return
     update.message.reply_text("An error occured, please validate token")
+
+
+def add_value_to_sheet(username, tutor):
+    values = [[username, '1']]
+    body = {
+        'values': values
+    }
+    # Call the Sheets API
+    service = get_service()
+    spreadsheetId = tutor["spreadsheet_id"]
+    # (TODO): Might fail
+    result = service.spreadsheets().values().update(
+        spreadsheetId=spreadsheetId, range='A2:B', 
+        valueInputOption='RAW', body=body).execute()
+    
 
 def error(bot, update, error):
     """Log errors caused by updates"""
@@ -198,20 +187,17 @@ def error(bot, update, error):
 ####### IVLE Login ##########
 #############################
 
-def login(): 
-    # Authenticate 
-    p = pyivle.Pyivle("DubSaHUcwQXbD2F0PH9VI")
-    p.login(USER_ID, PASSWORD)
+# def login(): 
+#     # Authenticate 
+#     p = pyivle.Pyivle("DubSaHUcwQXbD2F0PH9VI")
+#     p.login(USER_ID, PASSWORD)
 
-    # Get name and user IDs
-    student = p.profile_view() 
-    studentName = student.Results[0].Name
-    studentID = student.Results[0].UserID
+#     # Get name and user IDs
+#     student = p.profile_view() 
+#     studentName = student.Results[0].Name
+#     studentID = student.Results[0].UserID
 
     ## add studentName and studentID to method that adds to the database.
-
-def random_key(timeStamp): 
-    return hash(timeStamp) # returns the hash value of the timestamp object.
 
 def main():
     """Start the bot"""
