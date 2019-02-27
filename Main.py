@@ -134,7 +134,7 @@ def start_session(bot, update, args):
     update.message.reply_text(message)
 
 
-def stop_session(bot, update, args):
+def stop_session(bot, update):
     username = update.message.from_user.username
     if username not in STATE_OBJECT:
         update.message.reply_text("Invalid command")
@@ -159,7 +159,7 @@ def indicate_attendance(bot, update, args):
     token = int(args[0])
     #(TODO): A student may belong to multiple tutors
     for _, tutor_object in STATE_OBJECT.items():
-        if tutor_object['session_token'] == token:
+        if 'session_token' in tutor_object and tutor_object['session_token'] == token:
             add_value_to_sheet(username, tutor_object)
             # (TODO): Verify with student count
             update.message.reply_text("Attendance marked!")
