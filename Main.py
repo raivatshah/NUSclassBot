@@ -183,7 +183,7 @@ def add_value_to_sheet(username, tutor_object):
     service = get_service()
     spreadsheetId = tutor_object["spreadsheet_id"]
     # (TODO): Might fail
-    result = service.spreadsheets().values().update(
+    result = service.spreadsheets().values().append(
         spreadsheetId=spreadsheetId, range='A2:B', 
         valueInputOption='RAW', body=body).execute()
     
