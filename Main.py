@@ -12,6 +12,7 @@ Basic Echobot example, repeats messages.
 Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
+from telegram.ext.dispatcher import run_async
 import time
 import telegram
 import logging
@@ -153,13 +154,16 @@ def stop_session(bot, update):
     update.message.reply_text(message)
 
 ##### Student ##########
-
+@run_async
 def indicate_attendance(bot, update, args):
     username = update.message.from_user.username
     if len(args) != 1:
         update.message.reply_text("Invalid number of arguments")
         return
     token = int(args[0])
+    update_state(username, update, token)
+
+def update_state(username, update, token):
     #(TODO): A student may belong to multiple tutors
     for _, tutor_object in STATE_OBJECT.items():
         if 'session_token' in tutor_object and tutor_object['session_token'] == token:
