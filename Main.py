@@ -105,7 +105,6 @@ def create_sheet(username):
 
 def setup_sheet(bot, update):
     username = update.message.from_user.username
-    print(username)
     if username not in STATE_OBJECT:
         update.message.reply_text("Invalid command")
         return 
@@ -117,6 +116,9 @@ def generate_hash():
     return hash(time.time())
 
 def start_session(bot, update, args):
+    if len(args) != 1:
+        update.message.reply_text("Invalid number of arguments")
+        return
     number_of_students = int(args[0])
     username = update.message.from_user.username
     if username not in STATE_OBJECT:
