@@ -114,7 +114,8 @@ def setup_sheet(bot, update):
     update.message.reply_text("Sheet successfully created!")
 
 def generate_hash():
-    return hash(time.time())
+    y = hash(time.time())
+    return y % 100000000
 
 def start_session(bot, update, args):
     number_of_students = int(args[0])
