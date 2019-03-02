@@ -46,6 +46,9 @@ PICKLE_FILE = "token.pickle"
 STATE_OBJECT = {
     "chaitanyabaranwal": {
         "session_started": False,
+    },
+    "advaypal": {
+        "session_started": False,
     }
 }
 
