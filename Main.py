@@ -34,19 +34,18 @@ import string
 ################################################
 
 # Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
                     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 ECHO = range(0)
 
 # If modifying these scopes, delete the file token.pickle.
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SAMPLE_LIST = ['Chaitanya Baranwal', 'Raivat Shah', 'Advay Pal']
-PICKLE_FILE = 'token.pickle'
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+PICKLE_FILE = "token.pickle"
 STATE_OBJECT = {
     "chaitanyabaranwal": {
-        'session_started': False,
+        "session_started": False,
     }
 }
 
@@ -64,7 +63,7 @@ def get_service(bot, update, token=None):
     # created automatically when the authorization flow completes for the first
     # time.
     if os.path.exists(PICKLE_FILE):
-        with open(PICKLE_FILE, 'rb') as token:
+        with open(PICKLE_FILE, "rb") as token:
             creds = pickle.load(token)
 
     # If there are no (valid) credentials available, let the user log in.
@@ -75,7 +74,7 @@ def get_service(bot, update, token=None):
 
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
+                "credentials.json", SCOPES)
 
             # Setup authorization URL
             flow.redirect_uri = InstalledAppFlow._OOB_REDIRECT_URI
@@ -95,10 +94,10 @@ def get_service(bot, update, token=None):
             creds = flow.credentials
 
             # Save the credentials for the next run
-            with open(PICKLE_FILE, 'wb') as token:
+            with open(PICKLE_FILE, "wb") as token:
                 pickle.dump(creds, token)
 
-    service = build('sheets', 'v4', credentials=creds)
+    service = build("sheets", "v4", credentials=creds)
     return service
 
 
@@ -111,14 +110,14 @@ def create_sheet(bot, update, username, token=None):
     #(TODO): Sheet might already exist
     # Call the Sheets API
     spreadsheet = {
-        'properties': {
-            'title': 'NUSClassSample.xlsx'
+        "properties": {
+            "title": "NUSClassSample.xlsx"
         }
     }
     spreadsheet = service.spreadsheets().create(body=spreadsheet,
-                                        fields='spreadsheetId').execute()
-    spreadsheet_id = spreadsheet.get('spreadsheetId')
-    STATE_OBJECT[username]['spreadsheet_id'] = spreadsheet_id
+                                        fields="spreadsheetId").execute()
+    spreadsheet_id = spreadsheet.get("spreadsheetId")
+    STATE_OBJECT[username]["spreadsheet_id"] = spreadsheet_id
 
 ##############################
 ##### Bot framework ##########
@@ -150,14 +149,16 @@ def start_session(bot, update, args):
     if username not in STATE_OBJECT:
         update.message.reply_text("Invalid command")
         return
-    session_started = STATE_OBJECT[username]['session_started']
+    tutor_object = STATE_OBJECT[username]
+    session_started = tutor_object["session_started"]
     if session_started:
         message = "A session is already running"
     else:
-        STATE_OBJECT[username]['session_started'] = True
+        tutor_object["session_started"] = True
         token = generate_hash()
-        STATE_OBJECT[username]['session_token'] = token
-        STATE_OBJECT[username]['num_students'] = number_of_students
+        tutor_object["session_token"] = token
+        tutor_object["num_students"] = number_of_students
+        tutor_object["present_students"] = set()
         message = f"Session Started! Token = {token}"
     update.message.reply_text(message)
 
@@ -167,13 +168,18 @@ def stop_session(bot, update):
     if username not in STATE_OBJECT:
         update.message.reply_text("Invalid command")
         return
-    session_started = STATE_OBJECT[username]['session_started']
+    tutor_object = STATE_OBJECT[username]
+    session_started = tutor_object["session_started"]
     if not session_started:
         message = "No session running"
     else:
-        STATE_OBJECT[username]['session_started'] = False
-        del STATE_OBJECT[username]['session_token']
-        del STATE_OBJECT[username]['num_students']
+        present_students = tutor_object["present_students"]
+        if len(present_students) < tutor_object["num_students"]:
+            add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"])
+        tutor_object["session_started"] = False
+        del tutor_object[username]["session_token"]
+        del tutor_object[username]["num_students"]
+        del tutor_object[username]["present_students"]
         message = "Session Stopped"
     update.message.reply_text(message)
 
@@ -186,25 +192,41 @@ def indicate_attendance(bot, update, args):
     token = int(args[0])
     #(TODO): A student may belong to multiple tutors
     for _, tutor_object in STATE_OBJECT.items():
-        if 'session_token' in tutor_object and tutor_object['session_token'] == token:
-            add_value_to_sheet(bot, update, username, tutor_object)
-            # (TODO): Verify with student count
-            update.message.reply_text("Attendance marked!")
+        if "session_token" in tutor_object and tutor_object["session_token"] == token:
+            update_state(bot, update, username, tutor_object)
             return
     update.message.reply_text("An error occured, please validate token")
 
-def add_value_to_sheet(bot, update, username, tutor_object):
-    values = [[username, '1']]
+# (TODO) Retrieve from DB
+def get_ivle_name(username):
+    return username
+
+def update_state(bot, update, username, tutor_object):
+    num_students = tutor_object["num_students"]
+    present_students = tutor_object["present_students"]
+    name = get_ivle_name(username)
+    if name in present_students:
+        message = "Attendance already marked!"
+    elif num_students == len(present_students):
+        message = "Attendance quota filled! Please contact tutor"
+    else:
+        present_students.add(name)
+        message = "Attendance marked!"
+        add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"])
+    update.message.reply_text(message)
+
+@run_async
+def add_values_to_sheet(bot, update, usernames, spreadsheet_id):
+    values = [[username, "1"] for username in usernames]
     body = {
-        'values': values
+        "values": values
     }
     # Call the Sheets API
     service = get_service(bot, update)
-    spreadsheetId = tutor_object["spreadsheet_id"]
     # (TODO): Might fail
     result = service.spreadsheets().values().append(
-        spreadsheetId=spreadsheetId, range='A2:B', 
-        valueInputOption='RAW', body=body).execute()
+        spreadsheetId=spreadsheet_id, range="A2:B", 
+        valueInputOption="RAW", body=body).execute()
     
 
 def error(bot, update, error):
@@ -215,16 +237,16 @@ def main():
     """Start the bot"""
     
     # Create an event handler
-    updater = Updater('730332553:AAHBPADd7S43Vn5bPwd0JBVvlTKoY1au_xc')
+    updater = Updater("730332553:AAHBPADd7S43Vn5bPwd0JBVvlTKoY1au_xc")
 
     # Get dispatcher to register handlers
     dp = updater.dispatcher
 
     # Register different commands
-    dp.add_handler(CommandHandler('setup_sheet', setup_sheet, pass_args=True))
-    dp.add_handler(CommandHandler('start_session', start_session, pass_args=True))
-    dp.add_handler(CommandHandler('stop_session', stop_session))
-    dp.add_handler(CommandHandler('attend', indicate_attendance, pass_args=True))
+    dp.add_handler(CommandHandler("setup_sheet", setup_sheet, pass_args=True))
+    dp.add_handler(CommandHandler("start_session", start_session, pass_args=True))
+    dp.add_handler(CommandHandler("stop_session", stop_session))
+    dp.add_handler(CommandHandler("attend", indicate_attendance, pass_args=True))
 
     # Register an error logger
     dp.add_error_handler(error)
@@ -235,5 +257,5 @@ def main():
     # Run the bot until you press Ctrl-C
     updater.idle()
 
-if __name__=='__main__':
+if __name__=="__main__":
     main()
