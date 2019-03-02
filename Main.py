@@ -261,5 +261,11 @@ def main():
     # Run the bot until you press Ctrl-C
     updater.idle()
 
+def load_data_from_file():
+    pass
+
+def save_to_file():
+    pass
+
 if __name__=="__main__":
     main()
