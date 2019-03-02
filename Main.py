@@ -12,6 +12,7 @@ Basic Echobot example, repeats messages.
 Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
+from telegram.ext.dispatcher import run_async
 import time
 import telegram
 import logging
@@ -138,9 +139,13 @@ def setup_sheet(bot, update, args):
     update.message.reply_text("Sheet successfully created!")
 
 def generate_hash():
-    return hash(time.time())
+    y = hash(time.time())
+    return y % 100000000
 
 def start_session(bot, update, args):
+    if len(args) != 1:
+        update.message.reply_text("Invalid number of arguments")
+        return
     number_of_students = int(args[0])
     username = update.message.from_user.username
     if username not in STATE_OBJECT:
@@ -174,7 +179,6 @@ def stop_session(bot, update):
     update.message.reply_text(message)
 
 ##### Student ##########
-
 def indicate_attendance(bot, update, args):
     username = update.message.from_user.username
     if len(args) != 1:
@@ -190,7 +194,6 @@ def indicate_attendance(bot, update, args):
             return
     update.message.reply_text("An error occured, please validate token")
 
-
 def add_value_to_sheet(bot, update, username, tutor_object):
     values = [[username, '1']]
     body = {
@@ -200,7 +203,7 @@ def add_value_to_sheet(bot, update, username, tutor_object):
     service = get_service(bot, update)
     spreadsheetId = tutor_object["spreadsheet_id"]
     # (TODO): Might fail
-    result = service.spreadsheets().values().update(
+    result = service.spreadsheets().values().append(
         spreadsheetId=spreadsheetId, range='A2:B', 
         valueInputOption='RAW', body=body).execute()
     
