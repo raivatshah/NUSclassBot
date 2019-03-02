@@ -195,7 +195,10 @@ def stop_session(bot, update):
 ##### Student ##########
 def indicate_attendance(bot, update, args):
     username = update.message.from_user.username
-    if len(args) != 1:
+    if username not in STUDENT_OBJECT:
+        update.message.reply_text("You must run /setup before indicating attendance")
+        return
+    elif len(args) != 1:
         update.message.reply_text("Invalid number of arguments")
         return
     token = int(args[0])
