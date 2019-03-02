@@ -17,10 +17,13 @@ import telegram
 import logging
 import os
 import pickle
+import urllib.request
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from oauth2client import client
+from oauth2client import tools
 import pyivle
 import random 
 import string
@@ -41,7 +44,7 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SAMPLE_LIST = ['Chaitanya Baranwal', 'Raivat Shah', 'Advay Pal']
 PICKLE_FILE = 'token.pickle'
 STATE_OBJECT = {
-    "advaypal": {
+    "chaitanyabaranwal": {
         'session_started': False,
     }
 }
@@ -50,37 +53,59 @@ STATE_OBJECT = {
 #### Google Sheets Commands ########
 ####################################
 
-def get_service():
+def get_service(bot, update, token=None):
     """Shows basic usage of the Sheets API.
         Prints values from a sample spreadsheet.
         """
     creds = None
+    
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
     if os.path.exists(PICKLE_FILE):
         with open(PICKLE_FILE, 'rb') as token:
             creds = pickle.load(token)
+
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
+
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
+
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
                 'credentials.json', SCOPES)
-            creds = flow.run_local_server()
-        # Save the credentials for the next run
-        with open(PICKLE_FILE, 'wb') as token:
-            pickle.dump(creds, token)
+
+            # Setup authorization URL
+            flow.redirect_uri = InstalledAppFlow._OOB_REDIRECT_URI
+            auth_url, _ = flow.authorization_url()
+
+            if not token:
+                instructions = """Please follow the instructions to setup a Google Sheet:
+                    1. Click on the authorization URL
+                    2. Copy the authentication code
+                    3. Use '/setup_sheet <authentication_code>' to finish!"""
+                keyboard = [[telegram.InlineKeyboardButton("Open URL", url=auth_url)]]
+                reply_markup = telegram.InlineKeyboardMarkup(keyboard)
+                update.message.reply_text(instructions, reply_markup=reply_markup)
+
+            # Fetch access token if args present
+            flow.fetch_token(code=token)
+            creds = flow.credentials
+
+            # Save the credentials for the next run
+            with open(PICKLE_FILE, 'wb') as token:
+                pickle.dump(creds, token)
 
     service = build('sheets', 'v4', credentials=creds)
     return service
 
-def create_sheet(username):
+
+def create_sheet(bot, update, username, token=None):
     """Shows basic usage of the Sheets API.
     Create a new sample spreadsheet.
     """
-    service = get_service()
+    service = get_service(bot, update, token)
 
     #(TODO): Sheet might already exist
     # Call the Sheets API
@@ -93,9 +118,6 @@ def create_sheet(username):
                                         fields='spreadsheetId').execute()
     spreadsheet_id = spreadsheet.get('spreadsheetId')
     STATE_OBJECT[username]['spreadsheet_id'] = spreadsheet_id
-    # with open(PICKLE_FILE, 'w') as token:
-    #     pickle.dump({'id': spreadsheetId}, token)
-
 
 ##############################
 ##### Bot framework ##########
@@ -103,14 +125,16 @@ def create_sheet(username):
 
 ##### Tutor ##########    
 
-def setup_sheet(bot, update):
+def setup_sheet(bot, update, args):
     username = update.message.from_user.username
-    print(username)
     if username not in STATE_OBJECT:
         update.message.reply_text("Invalid command")
         return 
     # (TODO): Check if sheet already set up?
-    create_sheet(username)
+    try:
+        create_sheet(bot, update, username, args[0])
+    except:
+        create_sheet(bot, update, username)
     update.message.reply_text("Sheet successfully created!")
 
 def generate_hash():
@@ -160,20 +184,20 @@ def indicate_attendance(bot, update, args):
     #(TODO): A student may belong to multiple tutors
     for _, tutor_object in STATE_OBJECT.items():
         if 'session_token' in tutor_object and tutor_object['session_token'] == token:
-            add_value_to_sheet(username, tutor_object)
+            add_value_to_sheet(bot, update, username, tutor_object)
             # (TODO): Verify with student count
             update.message.reply_text("Attendance marked!")
             return
     update.message.reply_text("An error occured, please validate token")
 
 
-def add_value_to_sheet(username, tutor_object):
+def add_value_to_sheet(bot, update, username, tutor_object):
     values = [[username, '1']]
     body = {
         'values': values
     }
     # Call the Sheets API
-    service = get_service()
+    service = get_service(bot, update)
     spreadsheetId = tutor_object["spreadsheet_id"]
     # (TODO): Might fail
     result = service.spreadsheets().values().update(
@@ -211,11 +235,10 @@ def main():
     dp = updater.dispatcher
 
     # Register different commands
-    dp.add_handler(CommandHandler('setup_sheet', setup_sheet))
+    dp.add_handler(CommandHandler('setup_sheet', setup_sheet, pass_args=True))
     dp.add_handler(CommandHandler('start_session', start_session, pass_args=True))
     dp.add_handler(CommandHandler('stop_session', stop_session))
     dp.add_handler(CommandHandler('attend', indicate_attendance, pass_args=True))
-    # dp.add_handler(CommandHandler('help', help_func))
 
     # Register an error logger
     dp.add_error_handler(error)
