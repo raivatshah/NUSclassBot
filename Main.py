@@ -180,9 +180,9 @@ def stop_session(bot, update):
         if len(present_students) < tutor_object["num_students"]:
             add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"])
         tutor_object["session_started"] = False
-        del tutor_object[username]["session_token"]
-        del tutor_object[username]["num_students"]
-        del tutor_object[username]["present_students"]
+        del tutor_object["session_token"]
+        del tutor_object["num_students"]
+        del tutor_object["present_students"]
         message = "Session Stopped"
     update.message.reply_text(message)
 
@@ -215,7 +215,8 @@ def update_state(bot, update, username, tutor_object):
     else:
         present_students[username] = name
         message = "Attendance marked!"
-        add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"])
+        if num_students == len(present_students):
+            add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"])
     update.message.reply_text(message)
 
 @run_async
