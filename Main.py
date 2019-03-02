@@ -161,7 +161,7 @@ def start_session(bot, update, args):
         token = generate_hash()
         tutor_object["session_token"] = token
         tutor_object["num_students"] = number_of_students
-        tutor_object["present_students"] = set()
+        tutor_object["present_students"] = {}
         message = f"Session Started! Token = {token}"
     update.message.reply_text(message)
 
@@ -208,19 +208,19 @@ def update_state(bot, update, username, tutor_object):
     num_students = tutor_object["num_students"]
     present_students = tutor_object["present_students"]
     name = get_ivle_name(username)
-    if name in present_students:
+    if username in present_students:
         message = "Attendance already marked!"
     elif num_students == len(present_students):
         message = "Attendance quota filled! Please contact tutor"
     else:
-        present_students.add(name)
+        present_students[username] = name
         message = "Attendance marked!"
         add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"])
     update.message.reply_text(message)
 
 @run_async
 def add_values_to_sheet(bot, update, usernames, spreadsheet_id):
-    values = [[username, "1"] for username in usernames]
+    values = [[username, "1"] for username in usernames.values()]
     body = {
         "values": values
     }
