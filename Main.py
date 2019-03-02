@@ -239,7 +239,7 @@ def error(bot, update, error):
 
 def main():
     """Start the bot"""
-    
+    load_data_from_file()
     # Create an event handler
     updater = Updater("730332553:AAHBPADd7S43Vn5bPwd0JBVvlTKoY1au_xc")
 
