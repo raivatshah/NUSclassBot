@@ -25,7 +25,6 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from oauth2client import client
 from oauth2client import tools
-import pyivle
 import random 
 import string
 
@@ -235,10 +234,8 @@ def add_values_to_sheet(bot, update, usernames, spreadsheet_id):
     service = get_service(bot, update)
     # (TODO): Might fail
     result = service.spreadsheets().values().append(
-        spreadsheetId=spreadsheet_id, range="A2:B", 
-        valueInputOption="RAW", body=body).execute()
-        spreadsheetId=spreadsheetId, range='A2:B', 
-        valueInputOption='RAW', body=body).execute()
+    spreadsheetId=spreadsheet_id, range="A2:B", 
+    valueInputOption="RAW", body=body).execute()
 
 def setup_student(bot, update):
     update.message.reply_text("Okay! Please enter your name as registered on IVLE.")
