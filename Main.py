@@ -138,9 +138,8 @@ def setup_sheet(bot, update, args):
         create_sheet(bot, update, username)
     update.message.reply_text("Sheet successfully created!")
 
-def generate_hash():
-    y = hash(time.time())
-    return y % 100000000
+def generate_hash(): 
+    return hash(time.time()) % 100000000
 
 def start_session(bot, update, args):
     if len(args) != 1:
@@ -211,22 +210,6 @@ def add_value_to_sheet(bot, update, username, tutor_object):
 def error(bot, update, error):
     """Log errors caused by updates"""
     logger.warning('Update "%s" caused an error "%s"', update, error)
-
-#############################
-####### IVLE Login ##########
-#############################
-
-# def login(): 
-#     # Authenticate 
-#     p = pyivle.Pyivle("DubSaHUcwQXbD2F0PH9VI")
-#     p.login(USER_ID, PASSWORD)
-
-#     # Get name and user IDs
-#     student = p.profile_view() 
-#     studentName = student.Results[0].Name
-#     studentID = student.Results[0].UserID
-
-    ## add studentName and studentID to method that adds to the database.
 
 def main():
     """Start the bot"""
