@@ -38,18 +38,24 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
-ECHO = range(0)
+INPUT_NAME = range(0)
 
 # If modifying these scopes, delete the file token.pickle.
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-PICKLE_FILE = "token.pickle"
-STATE_OBJECT = {
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+SAMPLE_LIST = ['Chaitanya Baranwal', 'Raivat Shah', 'Advay Pal']
+PICKLE_FILE = 'token.pickle'
+
+TUTOR_OBJECT = {
     "chaitanyabaranwal": {
         "session_started": False,
     },
     "advaypal": {
         "session_started": False,
     }
+}
+
+STUDENT_OBJECT = {
+    "chaitanyabaranwal" : "Chaitanya Baranwal"
 }
 
 ####################################
@@ -120,7 +126,7 @@ def create_sheet(bot, update, username, token=None):
     spreadsheet = service.spreadsheets().create(body=spreadsheet,
                                         fields="spreadsheetId").execute()
     spreadsheet_id = spreadsheet.get("spreadsheetId")
-    STATE_OBJECT[username]["spreadsheet_id"] = spreadsheet_id
+    TUTOR_OBJECT[username]["spreadsheet_id"] = spreadsheet_id
 
 ##############################
 ##### Bot framework ##########
@@ -130,7 +136,7 @@ def create_sheet(bot, update, username, token=None):
 
 def setup_sheet(bot, update, args):
     username = update.message.from_user.username
-    if username not in STATE_OBJECT:
+    if username not in TUTOR_OBJECT:
         update.message.reply_text("Invalid command")
         return 
     # (TODO): Check if sheet already set up?
@@ -149,10 +155,10 @@ def start_session(bot, update, args):
         return
     number_of_students = int(args[0])
     username = update.message.from_user.username
-    if username not in STATE_OBJECT:
+    if username not in TUTOR_OBJECT:
         update.message.reply_text("Invalid command")
         return
-    tutor_object = STATE_OBJECT[username]
+    tutor_object = TUTOR_OBJECT[username]
     session_started = tutor_object["session_started"]
     if session_started:
         message = "A session is already running"
@@ -168,10 +174,10 @@ def start_session(bot, update, args):
 
 def stop_session(bot, update):
     username = update.message.from_user.username
-    if username not in STATE_OBJECT:
+    if username not in TUTOR_OBJECT:
         update.message.reply_text("Invalid command")
         return
-    tutor_object = STATE_OBJECT[username]
+    tutor_object = TUTOR_OBJECT[username]
     session_started = tutor_object["session_started"]
     if not session_started:
         message = "No session running"
@@ -194,7 +200,7 @@ def indicate_attendance(bot, update, args):
         return
     token = int(args[0])
     #(TODO): A student may belong to multiple tutors
-    for _, tutor_object in STATE_OBJECT.items():
+    for _, tutor_object in TUTOR_OBJECT.items():
         if "session_token" in tutor_object and tutor_object["session_token"] == token:
             update_state(bot, update, username, tutor_object)
             return
@@ -202,7 +208,7 @@ def indicate_attendance(bot, update, args):
 
 # (TODO) Retrieve from DB
 def get_ivle_name(username):
-    return username
+    return STUDENT_OBJECT[username]
 
 def update_state(bot, update, username, tutor_object):
     num_students = tutor_object["num_students"]
@@ -231,11 +237,31 @@ def add_values_to_sheet(bot, update, usernames, spreadsheet_id):
     result = service.spreadsheets().values().append(
         spreadsheetId=spreadsheet_id, range="A2:B", 
         valueInputOption="RAW", body=body).execute()
-    
+        spreadsheetId=spreadsheetId, range='A2:B', 
+        valueInputOption='RAW', body=body).execute()
+
+def setup_student(bot, update):
+    update.message.reply_text("Okay! Please enter your name as registered on IVLE.")
+    return INPUT_NAME
+
+def input_name(bot, update):
+    STUDENT_OBJECT[update.message.from_user.username] = update.message.text
+    update.message.reply_text("Okay! You have been registered.")
+    return ConversationHandler.END
+
+##### Error logging and other functions ##########
+
+def cancel(bot, update):
+    update.message.reply_text("Okay, operation cancelled.")
+    return ConversationHandler.END
 
 def error(bot, update, error):
     """Log errors caused by updates"""
     logger.warning('Update "%s" caused an error "%s"', update, error)
+
+################################
+####### Main function ##########
+################################
 
 def main():
     """Start the bot"""
@@ -247,10 +273,19 @@ def main():
     dp = updater.dispatcher
 
     # Register different commands
-    dp.add_handler(CommandHandler("setup_sheet", setup_sheet, pass_args=True))
-    dp.add_handler(CommandHandler("start_session", start_session, pass_args=True))
-    dp.add_handler(CommandHandler("stop_session", stop_session))
-    dp.add_handler(CommandHandler("attend", indicate_attendance, pass_args=True))
+    dp.add_handler(CommandHandler('setup_sheet', setup_sheet, pass_args=True))
+    dp.add_handler(CommandHandler('start_session', start_session, pass_args=True))
+    dp.add_handler(CommandHandler('stop_session', stop_session))
+    dp.add_handler(CommandHandler('attend', indicate_attendance, pass_args=True))
+    student_name_handler = ConversationHandler(
+        entry_points = [CommandHandler('setup', setup_student)],
+        states = {
+            INPUT_NAME: [MessageHandler(Filters.text, input_name)]
+        },
+        fallbacks = [CommandHandler('cancel', cancel)],
+        conversation_timeout = 10.0,
+    )
+    dp.add_handler(student_name_handler)
 
     # Register an error logger
     dp.add_error_handler(error)
