@@ -62,6 +62,7 @@ STUDENT_OBJECT = {
 #### Google Sheets Commands ########
 ####################################
 
+#(TODO): Need to store api token in db, not pickle file
 def get_service(bot, update, token=None):
     """Shows basic usage of the Sheets API.
         Prints values from a sample spreadsheet.
@@ -193,6 +194,15 @@ def stop_session(bot, update):
     update.message.reply_text(message)
 
 ##### Student ##########
+def start_info(bot, update, args):
+    message = """Hey there! Here's what this bot can do:
+        /start: Displays this message
+        /setup: Initial setup
+        /attend <token>: Use token provided by tutor to
+        indicate attendance"""
+    update.message.reply_text(message)
+     
+
 def indicate_attendance(bot, update, args):
     username = update.message.from_user.username
     if username not in STUDENT_OBJECT:
@@ -242,12 +252,13 @@ def add_values_to_sheet(bot, update, usernames, spreadsheet_id):
     valueInputOption="RAW", body=body).execute()
 
 def setup_student(bot, update):
-    update.message.reply_text("Okay! Please enter your name as registered on IVLE.")
+    update.message.reply_text("Please enter your name as registered on IVLE")
     return INPUT_NAME
 
 def input_name(bot, update):
     STUDENT_OBJECT[update.message.from_user.username] = update.message.text
-    update.message.reply_text("Okay! You have been registered.")
+    update.message.reply_text("""You have been registered! Please wait 
+                                for your tutor to give you a token""")
     return ConversationHandler.END
 
 ##### Error logging and other functions ##########
@@ -266,7 +277,6 @@ def error(bot, update, error):
 
 def main():
     """Start the bot"""
-    load_data_from_file()
     # Create an event handler
     updater = Updater("730332553:AAHBPADd7S43Vn5bPwd0JBVvlTKoY1au_xc")
 
@@ -274,6 +284,7 @@ def main():
     dp = updater.dispatcher
 
     # Register different commands
+    dp.add_handler(CommandHandler('start', start_info, pass_args=True))
     dp.add_handler(CommandHandler('setup_sheet', setup_sheet, pass_args=True))
     dp.add_handler(CommandHandler('start_session', start_session, pass_args=True))
     dp.add_handler(CommandHandler('stop_session', stop_session))
@@ -296,12 +307,6 @@ def main():
 
     # Run the bot until you press Ctrl-C
     updater.idle()
-
-def load_data_from_file():
-    pass
-
-def save_to_file():
-    pass
 
 if __name__=="__main__":
     main()
