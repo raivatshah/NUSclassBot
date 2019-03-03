@@ -26,7 +26,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from oauth2client import client
 from oauth2client import tools
-import random 
+import random
+import redis
 import string
 
 ################################################
@@ -42,21 +43,10 @@ INPUT_NAME = range(0)
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SAMPLE_LIST = ['Chaitanya Baranwal', 'Raivat Shah', 'Advay Pal']
 PICKLE_FILE = 'token.pickle'
+STUDENT_MAP = "STUDENT_MAP"
 
-TUTOR_OBJECT = {
-    "chaitanyabaranwal": {
-        "session_started": False,
-    },
-    "advaypal": {
-        "session_started": False,
-    }
-}
-
-STUDENT_OBJECT = {
-    "chaitanyabaranwal" : "Chaitanya Baranwal"
-}
+redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
 
 ####################################
 #### Google Sheets Commands ########
@@ -127,7 +117,7 @@ def create_sheet(bot, update, username, token=None):
     spreadsheet = service.spreadsheets().create(body=spreadsheet,
                                         fields="spreadsheetId").execute()
     spreadsheet_id = spreadsheet.get("spreadsheetId")
-    TUTOR_OBJECT[username]["spreadsheet_id"] = spreadsheet_id
+    redis_client.hset(username, "spreadsheet_id", spreadsheet_id)
 
 ##############################
 ##### Bot framework ##########
@@ -137,7 +127,7 @@ def create_sheet(bot, update, username, token=None):
 
 def setup_sheet(bot, update, args):
     username = update.message.from_user.username
-    if username not in TUTOR_OBJECT:
+    if not redis_client.exists(username):
         update.message.reply_text("Invalid command")
         return 
     # (TODO): Check if sheet already set up?
@@ -156,40 +146,37 @@ def start_session(bot, update, args):
         return
     number_of_students = int(args[0])
     username = update.message.from_user.username
-    if username not in TUTOR_OBJECT:
+    if not redis_client.exists(username):
         update.message.reply_text("Invalid command")
         return
-    tutor_object = TUTOR_OBJECT[username]
-    session_started = tutor_object["session_started"]
-    if session_started:
+    elif redis_client.hexists(username, "session_started"):
         message = "A session is already running"
     else:
-        tutor_object["session_started"] = True
         token = generate_hash()
-        tutor_object["session_token"] = token
-        tutor_object["num_students"] = number_of_students
-        tutor_object["present_students"] = {}
+        redis_client.hmset(username, {
+            "session_started": 1,
+            "num_students": number_of_students,
+            "session_token": token,
+            "present_students": {}
+        })
         message = f"Session Started! Token = {token}"
     update.message.reply_text(message)
 
 
 def stop_session(bot, update):
     username = update.message.from_user.username
-    if username not in TUTOR_OBJECT:
+    if not redis_client.exists(username):
         update.message.reply_text("Invalid command")
         return
-    tutor_object = TUTOR_OBJECT[username]
-    session_started = tutor_object["session_started"]
-    if not session_started:
+    elif not redis_client.hexists(username, "session_started"):
         message = "No session running"
     else:
+        tutor_object = redis_client.hgetall(username)
         present_students = tutor_object["present_students"]
         if len(present_students) < tutor_object["num_students"]:
             add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"])
-        tutor_object["session_started"] = False
-        del tutor_object["session_token"]
-        del tutor_object["num_students"]
-        del tutor_object["present_students"]
+        redis_client.hdel(username, "session_started", "session_token", 
+                            "num_students", "present_students")
         message = "Session Stopped"
     update.message.reply_text(message)
 
@@ -205,7 +192,7 @@ def start_info(bot, update, args):
 
 def indicate_attendance(bot, update, args):
     username = update.message.from_user.username
-    if username not in STUDENT_OBJECT:
+    if not redis_client.hexists(STUDENT_MAP, username):
         update.message.reply_text("You must run /setup before indicating attendance")
         return
     elif len(args) != 1:
@@ -213,17 +200,20 @@ def indicate_attendance(bot, update, args):
         return
     token = int(args[0])
     #(TODO): A student may belong to multiple tutors
-    for _, tutor_object in TUTOR_OBJECT.items():
-        if "session_token" in tutor_object and tutor_object["session_token"] == token:
-            update_state(bot, update, username, tutor_object)
+    for tutor_name in redis_client.scan_iter():
+        if tutor_name == STUDENT_MAP:
+            continue
+        if redis_client.hget(tutor_name, "session_token") == token:
+            update_state(bot, update, username, tutor_name)
             return
     update.message.reply_text("An error occured, please validate token")
 
 # (TODO) Retrieve from DB
 def get_ivle_name(username):
-    return STUDENT_OBJECT[username]
+    return redis_client.hget(STUDENT_MAP, username)
 
-def update_state(bot, update, username, tutor_object):
+def update_state(bot, update, username, tutor_name):
+    tutor_object = redis_client.hgetall(tutor_name)
     num_students = tutor_object["num_students"]
     present_students = tutor_object["present_students"]
     name = get_ivle_name(username)
@@ -256,7 +246,8 @@ def setup_student(bot, update):
     return INPUT_NAME
 
 def input_name(bot, update):
-    STUDENT_OBJECT[update.message.from_user.username] = update.message.text
+    username, ivle_name = update.message.from_user.username, update.message.text
+    redis_client.hset(STUDENT_MAP, username, ivle_name)
     update.message.reply_text("""You have been registered! Please wait 
                                 for your tutor to give you a token""")
     return ConversationHandler.END
