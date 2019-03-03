@@ -220,7 +220,7 @@ def update_state(bot, update, username, tutor_name):
         redis_client.hset(tutor_name, "present_students", json.dumps(present_students))
         message = "Attendance marked!"
         if num_students == len(present_students):
-            add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(username, "spreadsheet_id"), tutor_name)
+            add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(tutor_name, "spreadsheet_id"), tutor_name)
     update.message.reply_text(message)
 
 @run_async
