@@ -4,3 +4,5 @@ token.pickle
 .envrc
 .direnv/
 .DS_Store
+appendonly.aof
+dump.rdb

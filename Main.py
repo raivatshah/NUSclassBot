@@ -121,9 +121,9 @@ def create_sheet(bot, update, username, token=None):
 
 def setup_sheet(bot, update, args):
     username = update.message.from_user.username
-    if not redis_client.exists(username):
-        update.message.reply_text("Invalid command")
-        return 
+    # if not redis_client.exists(username):
+    #     update.message.reply_text("Invalid command")
+    #     return 
     # (TODO): Check if sheet already set up?
     try:
         create_sheet(bot, update, username, args[0])
@@ -168,7 +168,7 @@ def stop_session(bot, update):
         tutor_object = redis_client.hgetall(username)
         present_students = tutor_object["present_students"]
         if len(present_students) < tutor_object["num_students"]:
-            add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"])
+            add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"], username)
         redis_client.hdel(username, "session_started", "session_token", 
                             "num_students", "present_students")
         message = "Session Stopped"
@@ -219,17 +219,17 @@ def update_state(bot, update, username, tutor_name):
         present_students[username] = name
         message = "Attendance marked!"
         if num_students == len(present_students):
-            add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"])
+            add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"], tutor_name)
     update.message.reply_text(message)
 
 @run_async
-def add_values_to_sheet(bot, update, usernames, spreadsheet_id):
+def add_values_to_sheet(bot, update, usernames, spreadsheet_id, tutor_name):
     values = [[username, "1"] for username in usernames.values()]
     body = {
         "values": values
     }
     # Call the Sheets API
-    service = get_service(bot, update)
+    service = get_service(bot, update, tutor_name)
     # (TODO): Might fail
     result = service.spreadsheets().values().append(
     spreadsheetId=spreadsheet_id, range="A2:B", 
