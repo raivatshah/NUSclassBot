@@ -18,6 +18,7 @@ import time
 import telegram
 import logging
 import os
+import json
 import pickle
 import urllib.request
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
@@ -46,6 +47,7 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 STUDENT_MAP = "STUDENT_MAP"
 
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
+redis_pickle_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=False)
 
 ####################################
 #### Google Sheets Commands ########
@@ -59,7 +61,7 @@ def get_service(bot, update, username, token=None):
     creds = None
     
     if redis_client.hexists(username, "credentials"):
-        creds = pickle.loads(redis_client.hget(username, "credentials"))
+        creds = pickle.loads(redis_pickle_client.hget(username, "credentials"))
 
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
@@ -89,7 +91,7 @@ def get_service(bot, update, username, token=None):
             creds = flow.credentials
 
             # Save the credentials for the next run
-            redis_client.hset(username, "credentials", pickle.dumps(creds))
+            redis_pickle_client.hset(username, "credentials", pickle.dumps(creds))
 
     service = build("sheets", "v4", credentials=creds)
     return service
@@ -151,7 +153,7 @@ def start_session(bot, update, args):
             "session_started": 1,
             "num_students": number_of_students,
             "session_token": token,
-            "present_students": {}
+            "present_students": json.dumps({})
         })
         message = f"Session Started! Token = {token}"
     update.message.reply_text(message)
@@ -165,10 +167,9 @@ def stop_session(bot, update):
     elif not redis_client.hexists(username, "session_started"):
         message = "No session running"
     else:
-        tutor_object = redis_client.hgetall(username)
-        present_students = tutor_object["present_students"]
-        if len(present_students) < tutor_object["num_students"]:
-            add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"], username)
+        present_students = json.loads(redis_client.hget(username, "present_students"))
+        if len(present_students) < int(redis_client.hget(username, "num_students")):
+            add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(username, "spreadsheet_id"), username)
         redis_client.hdel(username, "session_started", "session_token", 
                             "num_students", "present_students")
         message = "Session Stopped"
@@ -197,7 +198,7 @@ def indicate_attendance(bot, update, args):
     for tutor_name in redis_client.scan_iter():
         if tutor_name == STUDENT_MAP:
             continue
-        if redis_client.hget(tutor_name, "session_token") == token:
+        if int(redis_client.hget(tutor_name, "session_token")) == token:
             update_state(bot, update, username, tutor_name)
             return
     update.message.reply_text("An error occured, please validate token")
@@ -207,9 +208,8 @@ def get_ivle_name(username):
     return redis_client.hget(STUDENT_MAP, username)
 
 def update_state(bot, update, username, tutor_name):
-    tutor_object = redis_client.hgetall(tutor_name)
-    num_students = tutor_object["num_students"]
-    present_students = tutor_object["present_students"]
+    num_students = int(redis_client.hget(tutor_name, "num_students"))
+    present_students = json.loads(redis_client.hget(tutor_name, "present_students"))
     name = get_ivle_name(username)
     if username in present_students:
         message = "Attendance already marked!"
@@ -217,14 +217,15 @@ def update_state(bot, update, username, tutor_name):
         message = "Attendance quota filled! Please contact tutor"
     else:
         present_students[username] = name
+        redis_client.hset(tutor_name, "present_students", json.dumps(present_students))
         message = "Attendance marked!"
         if num_students == len(present_students):
-            add_values_to_sheet(bot, update, present_students.copy(), tutor_object["spreadsheet_id"], tutor_name)
+            add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(username, "spreadsheet_id"), tutor_name)
     update.message.reply_text(message)
 
 @run_async
 def add_values_to_sheet(bot, update, usernames, spreadsheet_id, tutor_name):
-    values = [[username, "1"] for username in usernames.values()]
+    values = [[name.upper(), "1"] for name in usernames.values()]
     body = {
         "values": values
     }
