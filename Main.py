@@ -43,7 +43,6 @@ INPUT_NAME = range(0)
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-PICKLE_FILE = 'token.pickle'
 STUDENT_MAP = "STUDENT_MAP"
 
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
@@ -53,18 +52,14 @@ redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_respo
 ####################################
 
 #(TODO): Need to store api token in db, not pickle file
-def get_service(bot, update, token=None):
+def get_service(bot, update, username, token=None):
     """Shows basic usage of the Sheets API.
         Prints values from a sample spreadsheet.
         """
     creds = None
     
-    # The file token.pickle stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    if os.path.exists(PICKLE_FILE):
-        with open(PICKLE_FILE, "rb") as token:
-            creds = pickle.load(token)
+    if redis_client.hexists(username, "credentials"):
+        creds = pickle.loads(redis_client.hget(username, "credentials"))
 
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
@@ -94,8 +89,7 @@ def get_service(bot, update, token=None):
             creds = flow.credentials
 
             # Save the credentials for the next run
-            with open(PICKLE_FILE, "wb") as token:
-                pickle.dump(creds, token)
+            redis_client.hset(username, "credentials", pickle.dumps(creds))
 
     service = build("sheets", "v4", credentials=creds)
     return service
@@ -105,7 +99,7 @@ def create_sheet(bot, update, username, token=None):
     """Shows basic usage of the Sheets API.
     Create a new sample spreadsheet.
     """
-    service = get_service(bot, update, token)
+    service = get_service(bot, update, username, token)
 
     #(TODO): Sheet might already exist
     # Call the Sheets API
