@@ -196,7 +196,7 @@ def indicate_attendance(bot, update, args):
     token = int(args[0])
     #(TODO): A student may belong to multiple tutors
     for tutor_name in redis_client.scan_iter():
-        if tutor_name == STUDENT_MAP:
+        if tutor_name == STUDENT_MAP or not redis_client.hexists(tutor_name, "session_token"):
             continue
         if int(redis_client.hget(tutor_name, "session_token")) == token:
             update_state(bot, update, username, tutor_name)
