@@ -176,10 +176,10 @@ def stop_session(bot, update):
     update.message.reply_text(message)
 
 ##### Student ##########
-def start_info(bot, update, args):
+def start_info(bot, update):
     message = """Hey there! Here's what this bot can do:
         /start: Displays this message
-        /setup: Initial setup
+        /setup <name>: Provide IVLE name to the bot
         /attend <token>: Use token provided by tutor to
         indicate attendance"""
     update.message.reply_text(message)
@@ -196,7 +196,7 @@ def indicate_attendance(bot, update, args):
     token = int(args[0])
     #(TODO): A student may belong to multiple tutors
     for tutor_name in redis_client.scan_iter():
-        if tutor_name == STUDENT_MAP:
+        if tutor_name == STUDENT_MAP or not redis_client.hexists(tutor_name, "session_token"):
             continue
         if int(redis_client.hget(tutor_name, "session_token")) == token:
             update_state(bot, update, username, tutor_name)
@@ -220,7 +220,7 @@ def update_state(bot, update, username, tutor_name):
         redis_client.hset(tutor_name, "present_students", json.dumps(present_students))
         message = "Attendance marked!"
         if num_students == len(present_students):
-            add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(username, "spreadsheet_id"), tutor_name)
+            add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(tutor_name, "spreadsheet_id"), tutor_name)
     update.message.reply_text(message)
 
 @run_async
@@ -236,16 +236,17 @@ def add_values_to_sheet(bot, update, usernames, spreadsheet_id, tutor_name):
     spreadsheetId=spreadsheet_id, range="A2:B", 
     valueInputOption="RAW", body=body).execute()
 
-def setup_student(bot, update):
-    update.message.reply_text("Please enter your name as registered on IVLE")
-    return INPUT_NAME
-
-def input_name(bot, update):
-    username, ivle_name = update.message.from_user.username, update.message.text
-    redis_client.hset(STUDENT_MAP, username, ivle_name)
-    update.message.reply_text("""You have been registered! Please wait 
-                                for your tutor to give you a token""")
-    return ConversationHandler.END
+def setup_student(bot, update, args):
+    try:
+        username = update.message.from_user.username
+        ivle_name = ' '.join(args)
+        print(ivle_name)
+        redis_client.hset(STUDENT_MAP, username, ivle_name)
+        update.message.reply_text("You have been registered! Please wait " + 
+                                    "for your tutor to give you a token")
+    except:
+        update.message.reply_text("Please enter you IVLE name with the command" +  
+                                    " in the format: /setup <ivle_name>")
 
 ##### Error logging and other functions ##########
 
@@ -270,20 +271,12 @@ def main():
     dp = updater.dispatcher
 
     # Register different commands
-    dp.add_handler(CommandHandler('start', start_info, pass_args=True))
+    dp.add_handler(CommandHandler('start', start_info))
     dp.add_handler(CommandHandler('setup_sheet', setup_sheet, pass_args=True))
     dp.add_handler(CommandHandler('start_session', start_session, pass_args=True))
     dp.add_handler(CommandHandler('stop_session', stop_session))
     dp.add_handler(CommandHandler('attend', indicate_attendance, pass_args=True))
-    student_name_handler = ConversationHandler(
-        entry_points = [CommandHandler('setup', setup_student)],
-        states = {
-            INPUT_NAME: [MessageHandler(Filters.text, input_name)]
-        },
-        fallbacks = [CommandHandler('cancel', cancel)],
-        conversation_timeout = 10.0,
-    )
-    dp.add_handler(student_name_handler)
+    dp.add_handler(CommandHandler('setup', setup_student, pass_args=True))
 
     # Register an error logger
     dp.add_error_handler(error)
