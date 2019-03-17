@@ -122,7 +122,7 @@ def create_sheet(bot, update, user_id, token=None):
 ##### Tutor ##########    
 
 def setup_sheet(bot, update, args):
-    user_id = update.message.from_user.id
+    user_id = get_user_id_or_username(bot, update)
     # if not redis_client.exists(user_id):
     #     update.message.reply_text("Invalid command")
     #     return 
@@ -141,7 +141,7 @@ def start_session(bot, update, args):
         update.message.reply_text("Invalid number of arguments")
         return
     number_of_students = int(args[0])
-    user_id = update.message.from_user.id
+    user_id = get_user_id_or_username(bot, update)
     if not redis_client.exists(user_id):
         update.message.reply_text("Invalid command")
         return
@@ -160,7 +160,7 @@ def start_session(bot, update, args):
 
 
 def stop_session(bot, update):
-    user_id = update.message.from_user.id
+    user_id = get_user_id_or_username(bot, update)
     if not redis_client.exists(user_id):
         update.message.reply_text("Invalid command")
         return
@@ -186,7 +186,7 @@ def start_info(bot, update):
      
 
 def indicate_attendance(bot, update, args):
-    user_id = update.message.from_user.id
+    user_id = get_user_id_or_username(bot, update)
     if not redis_client.hexists(STUDENT_MAP, user_id):
         update.message.reply_text("You must run /setup before indicating attendance")
         return
@@ -236,11 +236,20 @@ def add_values_to_sheet(bot, update, user_ids, spreadsheet_id, tutor_id):
     spreadsheetId=spreadsheet_id, range="A2:B", 
     valueInputOption="RAW", body=body).execute()
 
+def get_user_id_or_username(bot, update):
+    user_id = update.message.from_user.id
+    username = update.message.from_user.username
+    if redis_client.hexists(STUDENT_MAP, user_id):
+        return user_id
+    elif redis_client.hexists(STUDENT_MAP, username):
+        return username
+    else:
+        return user_id
+
 def setup_student(bot, update, args):
     try:
         user_id = update.message.from_user.id
         ivle_name = ' '.join(args)
-        print(ivle_name)
         redis_client.hset(STUDENT_MAP, user_id, ivle_name)
         update.message.reply_text("You have been registered! Please wait " + 
                                     "for your tutor to give you a token")
