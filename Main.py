@@ -54,14 +54,14 @@ redis_pickle_client = redis.StrictRedis(host='localhost', port=6379, db=0, decod
 ####################################
 
 #(TODO): Need to store api token in db, not pickle file
-def get_service(bot, update, username, token=None):
+def get_service(bot, update, user_id, token=None):
     """Shows basic usage of the Sheets API.
         Prints values from a sample spreadsheet.
         """
     creds = None
     
-    if redis_client.hexists(username, "credentials"):
-        creds = pickle.loads(redis_pickle_client.hget(username, "credentials"))
+    if redis_client.hexists(user_id, "credentials"):
+        creds = pickle.loads(redis_pickle_client.hget(user_id, "credentials"))
 
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
@@ -91,17 +91,17 @@ def get_service(bot, update, username, token=None):
             creds = flow.credentials
 
             # Save the credentials for the next run
-            redis_pickle_client.hset(username, "credentials", pickle.dumps(creds))
+            redis_pickle_client.hset(user_id, "credentials", pickle.dumps(creds))
 
     service = build("sheets", "v4", credentials=creds)
     return service
 
 
-def create_sheet(bot, update, username, token=None):
+def create_sheet(bot, update, user_id, token=None):
     """Shows basic usage of the Sheets API.
     Create a new sample spreadsheet.
     """
-    service = get_service(bot, update, username, token)
+    service = get_service(bot, update, user_id, token)
 
     #(TODO): Sheet might already exist
     # Call the Sheets API
@@ -113,7 +113,7 @@ def create_sheet(bot, update, username, token=None):
     spreadsheet = service.spreadsheets().create(body=spreadsheet,
                                         fields="spreadsheetId").execute()
     spreadsheet_id = spreadsheet.get("spreadsheetId")
-    redis_client.hset(username, "spreadsheet_id", spreadsheet_id)
+    redis_client.hset(user_id, "spreadsheet_id", spreadsheet_id)
 
 ##############################
 ##### Bot framework ##########
@@ -122,15 +122,15 @@ def create_sheet(bot, update, username, token=None):
 ##### Tutor ##########    
 
 def setup_sheet(bot, update, args):
-    username = update.message.from_user.username
-    # if not redis_client.exists(username):
+    user_id = update.message.from_user.id
+    # if not redis_client.exists(user_id):
     #     update.message.reply_text("Invalid command")
     #     return 
     # (TODO): Check if sheet already set up?
     try:
-        create_sheet(bot, update, username, args[0])
+        create_sheet(bot, update, user_id, args[0])
     except:
-        create_sheet(bot, update, username)
+        create_sheet(bot, update, user_id)
     update.message.reply_text("Sheet successfully created!")
 
 def generate_hash(): 
@@ -141,15 +141,15 @@ def start_session(bot, update, args):
         update.message.reply_text("Invalid number of arguments")
         return
     number_of_students = int(args[0])
-    username = update.message.from_user.username
-    if not redis_client.exists(username):
+    user_id = update.message.from_user.id
+    if not redis_client.exists(user_id):
         update.message.reply_text("Invalid command")
         return
-    elif redis_client.hexists(username, "session_started"):
+    elif redis_client.hexists(user_id, "session_started"):
         message = "A session is already running"
     else:
         token = generate_hash()
-        redis_client.hmset(username, {
+        redis_client.hmset(user_id, {
             "session_started": 1,
             "num_students": number_of_students,
             "session_token": token,
@@ -160,34 +160,34 @@ def start_session(bot, update, args):
 
 
 def stop_session(bot, update):
-    username = update.message.from_user.username
-    if not redis_client.exists(username):
+    user_id = update.message.from_user.id
+    if not redis_client.exists(user_id):
         update.message.reply_text("Invalid command")
         return
-    elif not redis_client.hexists(username, "session_started"):
+    elif not redis_client.hexists(user_id, "session_started"):
         message = "No session running"
     else:
-        present_students = json.loads(redis_client.hget(username, "present_students"))
-        if len(present_students) < int(redis_client.hget(username, "num_students")):
-            add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(username, "spreadsheet_id"), username)
-        redis_client.hdel(username, "session_started", "session_token", 
+        present_students = json.loads(redis_client.hget(user_id, "present_students"))
+        if len(present_students) < int(redis_client.hget(user_id, "num_students")):
+            add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(user_id, "spreadsheet_id"), user_id)
+        redis_client.hdel(user_id, "session_started", "session_token", 
                             "num_students", "present_students")
         message = "Session Stopped"
     update.message.reply_text(message)
 
 ##### Student ##########
-def start_info(bot, update, args):
+def start_info(bot, update):
     message = """Hey there! Here's what this bot can do:
         /start: Displays this message
-        /setup: Initial setup
+        /setup <name>: Provide IVLE name to the bot
         /attend <token>: Use token provided by tutor to
         indicate attendance"""
     update.message.reply_text(message)
      
 
 def indicate_attendance(bot, update, args):
-    username = update.message.from_user.username
-    if not redis_client.hexists(STUDENT_MAP, username):
+    user_id = update.message.from_user.id
+    if not redis_client.hexists(STUDENT_MAP, user_id):
         update.message.reply_text("You must run /setup before indicating attendance")
         return
     elif len(args) != 1:
@@ -195,57 +195,67 @@ def indicate_attendance(bot, update, args):
         return
     token = int(args[0])
     #(TODO): A student may belong to multiple tutors
+<<<<<<< HEAD
     for tutor_name in redis_client.scan_iter():
         if tutor_name == STUDENT_MAP or not redis_client.hexists(tutor_name, "session_token"):
+=======
+    for tutor_id in redis_client.scan_iter():
+        if tutor_id == STUDENT_MAP or not redis_client.hexists(tutor_id, "session_token"):
+>>>>>>> e9bdb5884cd359194777352224af6f37db84eaf0
             continue
-        if int(redis_client.hget(tutor_name, "session_token")) == token:
-            update_state(bot, update, username, tutor_name)
+        if int(redis_client.hget(tutor_id, "session_token")) == token:
+            update_state(bot, update, user_id, tutor_id)
             return
     update.message.reply_text("An error occured, please validate token")
 
 # (TODO) Retrieve from DB
-def get_ivle_name(username):
-    return redis_client.hget(STUDENT_MAP, username)
+def get_ivle_name(user_id):
+    return redis_client.hget(STUDENT_MAP, user_id)
 
-def update_state(bot, update, username, tutor_name):
-    num_students = int(redis_client.hget(tutor_name, "num_students"))
-    present_students = json.loads(redis_client.hget(tutor_name, "present_students"))
-    name = get_ivle_name(username)
-    if username in present_students:
+def update_state(bot, update, user_id, tutor_id):
+    num_students = int(redis_client.hget(tutor_id, "num_students"))
+    present_students = json.loads(redis_client.hget(tutor_id, "present_students"))
+    name = get_ivle_name(user_id)
+    if user_id in present_students:
         message = "Attendance already marked!"
     elif num_students == len(present_students):
         message = "Attendance quota filled! Please contact tutor"
     else:
-        present_students[username] = name
-        redis_client.hset(tutor_name, "present_students", json.dumps(present_students))
+        present_students[user_id] = name
+        redis_client.hset(tutor_id, "present_students", json.dumps(present_students))
         message = "Attendance marked!"
         if num_students == len(present_students):
+<<<<<<< HEAD
             add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(tutor_name, "spreadsheet_id"), tutor_name)
+=======
+            add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(tutor_id, "spreadsheet_id"), tutor_id)
+>>>>>>> e9bdb5884cd359194777352224af6f37db84eaf0
     update.message.reply_text(message)
 
 @run_async
-def add_values_to_sheet(bot, update, usernames, spreadsheet_id, tutor_name):
-    values = [[name.upper(), "1"] for name in usernames.values()]
+def add_values_to_sheet(bot, update, user_ids, spreadsheet_id, tutor_id):
+    values = [[name.upper(), "1"] for name in user_ids.values()]
     body = {
         "values": values
     }
     # Call the Sheets API
-    service = get_service(bot, update, tutor_name)
+    service = get_service(bot, update, tutor_id)
     # (TODO): Might fail
     result = service.spreadsheets().values().append(
     spreadsheetId=spreadsheet_id, range="A2:B", 
     valueInputOption="RAW", body=body).execute()
 
-def setup_student(bot, update):
-    update.message.reply_text("Please enter your name as registered on IVLE")
-    return INPUT_NAME
-
-def input_name(bot, update):
-    username, ivle_name = update.message.from_user.username, update.message.text
-    redis_client.hset(STUDENT_MAP, username, ivle_name)
-    update.message.reply_text("""You have been registered! Please wait 
-                                for your tutor to give you a token""")
-    return ConversationHandler.END
+def setup_student(bot, update, args):
+    try:
+        user_id = update.message.from_user.id
+        ivle_name = ' '.join(args)
+        print(ivle_name)
+        redis_client.hset(STUDENT_MAP, user_id, ivle_name)
+        update.message.reply_text("You have been registered! Please wait " + 
+                                    "for your tutor to give you a token")
+    except:
+        update.message.reply_text("Please enter you IVLE name with the command" +  
+                                    " in the format: /setup <ivle_name>")
 
 ##### Error logging and other functions ##########
 
@@ -270,20 +280,12 @@ def main():
     dp = updater.dispatcher
 
     # Register different commands
-    dp.add_handler(CommandHandler('start', start_info, pass_args=True))
+    dp.add_handler(CommandHandler('start', start_info))
     dp.add_handler(CommandHandler('setup_sheet', setup_sheet, pass_args=True))
     dp.add_handler(CommandHandler('start_session', start_session, pass_args=True))
     dp.add_handler(CommandHandler('stop_session', stop_session))
     dp.add_handler(CommandHandler('attend', indicate_attendance, pass_args=True))
-    student_name_handler = ConversationHandler(
-        entry_points = [CommandHandler('setup', setup_student)],
-        states = {
-            INPUT_NAME: [MessageHandler(Filters.text, input_name)]
-        },
-        fallbacks = [CommandHandler('cancel', cancel)],
-        conversation_timeout = 10.0,
-    )
-    dp.add_handler(student_name_handler)
+    dp.add_handler(CommandHandler('setup', setup_student, pass_args=True))
 
     # Register an error logger
     dp.add_error_handler(error)
