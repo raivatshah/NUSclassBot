@@ -247,13 +247,13 @@ def get_user_id_or_username(bot, update):
         return user_id
 
 def setup_student(bot, update, args):
-    try:
+    if len(args) > 0:
         user_id = update.message.from_user.id
         ivle_name = ' '.join(args)
         redis_client.hset(STUDENT_MAP, user_id, ivle_name)
         update.message.reply_text("You have been registered! Please wait " + 
                                     "for your tutor to give you a token")
-    except:
+    else:
         update.message.reply_text("Please enter you IVLE name with the command" +  
                                     " in the format: /setup <ivle_name>")
 
