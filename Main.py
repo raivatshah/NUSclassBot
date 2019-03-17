@@ -195,13 +195,8 @@ def indicate_attendance(bot, update, args):
         return
     token = int(args[0])
     #(TODO): A student may belong to multiple tutors
-<<<<<<< HEAD
-    for tutor_name in redis_client.scan_iter():
-        if tutor_name == STUDENT_MAP or not redis_client.hexists(tutor_name, "session_token"):
-=======
     for tutor_id in redis_client.scan_iter():
         if tutor_id == STUDENT_MAP or not redis_client.hexists(tutor_id, "session_token"):
->>>>>>> e9bdb5884cd359194777352224af6f37db84eaf0
             continue
         if int(redis_client.hget(tutor_id, "session_token")) == token:
             update_state(bot, update, user_id, tutor_id)
@@ -225,11 +220,7 @@ def update_state(bot, update, user_id, tutor_id):
         redis_client.hset(tutor_id, "present_students", json.dumps(present_students))
         message = "Attendance marked!"
         if num_students == len(present_students):
-<<<<<<< HEAD
-            add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(tutor_name, "spreadsheet_id"), tutor_name)
-=======
             add_values_to_sheet(bot, update, present_students.copy(), redis_client.hget(tutor_id, "spreadsheet_id"), tutor_id)
->>>>>>> e9bdb5884cd359194777352224af6f37db84eaf0
     update.message.reply_text(message)
 
 @run_async
