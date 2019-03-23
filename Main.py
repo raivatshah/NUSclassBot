@@ -241,7 +241,7 @@ def get_user_id_or_username(bot, update):
     username = update.message.from_user.username
     if redis_client.hexists(STUDENT_MAP, user_id):
         return user_id
-    elif redis_client.hexists(STUDENT_MAP, username):
+    elif username and redis_client.hexists(STUDENT_MAP, username):
         return username
     else:
         return user_id
