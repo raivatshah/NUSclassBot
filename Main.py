@@ -45,6 +45,7 @@ INPUT_NAME = range(0)
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 STUDENT_MAP = "STUDENT_MAP"
+TOKEN_MAP = "TOKEN_MAP"
 
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
 redis_pickle_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=False)
@@ -133,8 +134,10 @@ def setup_sheet(bot, update, args):
         create_sheet(bot, update, user_id)
     update.message.reply_text("Sheet successfully created!")
 
-def generate_hash(): 
-    return hash(time.time()) % 100000000
+def generate_hash(user_id):
+    token = hash(time.time()) % 100000000
+    redis_client.hset(TOKEN_MAP, token, user_id)
+    return token
 
 def start_session(bot, update, args):
     if len(args) != 1:
@@ -148,7 +151,7 @@ def start_session(bot, update, args):
     elif redis_client.hexists(user_id, "session_started"):
         message = "A session is already running"
     else:
-        token = generate_hash()
+        token = generate_hash(user_id)
         redis_client.hmset(user_id, {
             "session_started": 1,
             "num_students": number_of_students,
@@ -195,13 +198,10 @@ def indicate_attendance(bot, update, args):
         return
     token = int(args[0])
     #(TODO): A student may belong to multiple tutors
-    for tutor_id in redis_client.scan_iter():
-        if tutor_id == STUDENT_MAP or not redis_client.hexists(tutor_id, "session_token"):
-            continue
-        if int(redis_client.hget(tutor_id, "session_token")) == token:
-            update_state(bot, update, user_id, tutor_id)
-            return
-    update.message.reply_text("An error occured, please validate token")
+    if not redis_client.hexists(TOKEN_MAP, token):
+        update.message.reply_text("An error occured, please validate token")
+    tutor_id = redis_client.hget(TOKEN_MAP, token)
+    update_state(bot, update, user_id, tutor_id)
 
 # (TODO) Retrieve from DB
 def get_ivle_name(user_id):
