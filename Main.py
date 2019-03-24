@@ -211,7 +211,7 @@ def update_state(bot, update, user_id, tutor_id):
     num_students = int(redis_client.hget(tutor_id, "num_students"))
     present_students = json.loads(redis_client.hget(tutor_id, "present_students"))
     name = get_ivle_name(user_id)
-    if user_id in present_students:
+    if str(user_id) in present_students:
         message = "Attendance already marked!"
     elif num_students == len(present_students):
         message = "Attendance quota filled! Please contact tutor"
