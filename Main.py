@@ -1,16 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Simple Bot to reply to Telegram messages.
-This program is dedicated to the public domain under the CC0 license.
-This Bot uses the Updater class to handle the bot.
-First, a few handler functions are defined. Then, those functions are passed to
-the Dispatcher and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
-Usage:
-Basic Echobot example, repeats messages.
-Press Ctrl-C on the command line or send a signal to the process to stop the
-bot.
+""" NUS ClassBot v1.1 
+developed using Telegram's BOT API (python v3)
+
+Developers:
+Advay Pal 
+Chaitanya Baranwal 
+Raivat Shah 
 """
 from telegram.ext.dispatcher import run_async
 import threading
@@ -144,6 +141,9 @@ def start_session(bot, update, args):
         update.message.reply_text("Invalid number of arguments")
         return
     number_of_students = int(args[0])
+    if number_of_students <= 0:
+        update.message.reply_text("Invalid argument. Cannot have 0 or fewer students")
+        return
     user_id = get_user_id_or_username(bot, update)
     if not redis_client.exists(user_id):
         update.message.reply_text("Invalid command")
