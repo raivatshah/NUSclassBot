@@ -226,6 +226,7 @@ def update_state(bot, update, user_id, tutor_id):
 @run_async
 def add_values_to_sheet(bot, update, user_ids, spreadsheet_id, tutor_id):
     values = [[name.upper(), "1"] for name in user_ids.values()]
+    values = sorted(values, key = lambda x : x[0])
     body = {
         "values": values
     }
