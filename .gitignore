@@ -6,3 +6,4 @@ token.pickle
 .DS_Store
 appendonly.aof
 dump.rdb
+credentials.json
