@@ -275,7 +275,7 @@ def error(bot, update, error):
 def main():
     """Start the bot"""
     # Create an event handler
-    updater = Updater("730332553:AAHBPADd7S43Vn5bPwd0JBVvlTKoY1au_xc")
+    updater = Updater(os.environ.get('TELEKEY')) #API key 
 
     # Get dispatcher to register handlers
     dp = updater.dispatcher
